@@ -1,0 +1,7 @@
+streamlit
+librosa
+numpy
+plotly
+faster-whisper
+torch
+audio-recorder-streamlit
