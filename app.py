@@ -9,14 +9,14 @@ import time
 import soundfile as sf
 from audio_recorder_streamlit import audio_recorder
 
-# ------------------ PAGE CONFIG ------------------
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="Vocalytics | Voice Analyzer",
     page_icon="🎙️",
     layout="wide"
 )
 
-# ------------------ UI STYLE ------------------
+# ---------------- UI STYLE ----------------
 st.markdown("""
 <style>
 .stApp {
@@ -35,7 +35,7 @@ st.markdown("""
     color: #94A3B8;
     margin-bottom: 20px;
 }
-.glass {
+.card {
     background: rgba(255,255,255,0.05);
     padding: 20px;
     border-radius: 15px;
@@ -43,11 +43,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ------------------ HEADER ------------------
+# ---------------- HEADER ----------------
 st.markdown('<h1 class="main-title">Vocalytics</h1>', unsafe_allow_html=True)
-st.markdown('<p class="sub-title">AI Voice Analysis System</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-title">Advanced Voice Analysis</p>', unsafe_allow_html=True)
 
-# ------------------ FUNCTIONS ------------------
+# ---------------- FUNCTIONS ----------------
 
 def pitch_category(hz):
     if hz == 0:
@@ -100,23 +100,73 @@ def analyze_audio(file_path):
 
     return pitch, category, text, wc, wpm, duration, y, sr_rate, f0, energy
 
-def waveform(y, sr):
-    t = np.linspace(0, len(y)/sr, len(y))
+# ---------------- PLOTS ----------------
+
+def create_waveform_plot(y, sr):
+    time = np.linspace(0, len(y)/sr, num=len(y))
+
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=t, y=y, mode='lines'))
-    fig.update_layout(template="plotly_dark", height=250)
+
+    fig.add_trace(go.Scatter(
+        x=time[::100],
+        y=y[::100],
+        mode='lines',
+        name="Waveform",
+        line=dict(color='#8B5CF6', width=2),
+        fill='tozeroy',
+        fillcolor='rgba(139, 92, 246, 0.2)'
+    ))
+
+    fig.update_layout(
+        title="🎵 Live Waveform",
+        xaxis_title="Time (seconds)",
+        yaxis_title="Amplitude",
+        template="plotly_dark",
+        height=300,
+        margin=dict(l=10, r=10, t=40, b=10),
+        showlegend=True
+    )
+
     return fig
 
-def pitch_plot(f0):
+
+def create_pitch_plot(time_axis, f0):
+    # Remove spikes
+    f0_clean = []
+    for val in f0:
+        if np.isnan(val) or val > 500:
+            f0_clean.append(None)
+        else:
+            f0_clean.append(val)
+
     fig = go.Figure()
-    fig.add_trace(go.Scatter(y=f0, mode='lines+markers'))
-    fig.update_layout(template="plotly_dark", height=250)
+
+    fig.add_trace(go.Scatter(
+        x=time_axis,
+        y=f0_clean,
+        mode='lines+markers',
+        name="Pitch (Hz)",
+        marker=dict(size=4),
+        line=dict(width=2, color='#10B981')
+    ))
+
+    fig.update_layout(
+        title="🎯 Pitch Contour",
+        xaxis_title="Time (seconds)",
+        yaxis_title="Frequency (Hz)",
+        template="plotly_dark",
+        height=300,
+        margin=dict(l=10, r=10, t=40, b=10),
+        showlegend=True
+    )
+
     return fig
 
-# ------------------ INPUT ------------------
-st.markdown("### 🎙️ Record or Upload")
+# ---------------- INPUT ----------------
 
-tab1, tab2 = st.tabs(["Record", "Upload"])
+st.markdown("### 🎙️ Record or Upload Audio")
+
+tab1, tab2 = st.tabs(["🎤 Record", "📁 Upload"])
 
 audio_path = None
 
@@ -138,12 +188,17 @@ with tab2:
             f.write(file.getvalue())
             audio_path = f.name
 
-# ------------------ ANALYSIS ------------------
+# ---------------- ANALYSIS ----------------
+
 if audio_path:
     st.markdown("---")
-    with st.spinner("Analyzing..."):
+
+    with st.spinner("Analyzing voice..."):
+        start = time.time()
 
         pitch, category, text, wc, wpm, duration, y, sr_rate, f0, energy = analyze_audio(audio_path)
+
+        end = time.time()
 
         c1, c2, c3, c4 = st.columns(4)
 
@@ -161,8 +216,14 @@ if audio_path:
         st.markdown("### ⚡ Energy Level")
         st.info(f"{energy:.5f}")
 
-        st.plotly_chart(waveform(y, sr_rate), use_container_width=True)
-        st.plotly_chart(pitch_plot(f0), use_container_width=True)
+        st.markdown("## 🎵 Live Audio Waveform")
+        st.plotly_chart(create_waveform_plot(y, sr_rate), use_container_width=True)
+
+        st.markdown("## 🎯 Voice Pitch Analysis")
+        time_axis = librosa.times_like(f0, sr=sr_rate)
+        st.plotly_chart(create_pitch_plot(time_axis, f0), use_container_width=True)
+
+        st.caption(f"Processed in {end - start:.2f} seconds")
 
     # Cleanup
     os.remove(audio_path)
